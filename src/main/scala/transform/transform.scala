@@ -18,7 +18,7 @@ case class Transform(link: Link) {
   def addUniqueId(addId: (String, String, String, String, String) => String) = {
 
     new TransformationLink((df: DataFrame) => {
-      val createUniqueIdFnUdf = udf(createUniqueIdFn)
+      val createUniqueIdFnUdf = udf(addId)
       df.withColumn("uniqueId", createUniqueIdFnUdf(
         df("year"),
         df("channel"),
