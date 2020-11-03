@@ -3,9 +3,12 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.expressions._
+import output.output
+import _root_.transform.{JoinMap, Transform}
+import ingest.Ingestion
 
 
-class FactoryPipeline(private val spark: SparkSession) {
+class FactoryPipeline(implicit private val spark: SparkSession) {
   private val CALENDAR_PATH = "./data/calendar.csv"
   private val PRODUCT_PATH = "./data/product.csv"
   private val SALES_PATH = "./data/sales.csv"
@@ -26,16 +29,7 @@ class FactoryPipeline(private val spark: SparkSession) {
     )
   }
 
-  case class Ingestion(link: Link) {
-    import spark.sqlContext.implicits._
 
-    def addWeeksOfYear(tableName: String): Map[String, Link] = {
-      Map(
-        tableName -> link,
-        "weeks_of_year" -> new DataLink((1 to 3).toDF("weekofyear"))
-      )
-    }
-  }
   implicit def ingest(link: Link) = Ingestion(link)
 
 
@@ -78,17 +72,7 @@ class FactoryPipeline(private val spark: SparkSession) {
                   |            INNER JOIN calendar c
                   |            ON s.dateId = c.datekey""".stripMargin
 
-  case class JoinMap(m: Map[String, Link]) {
-    def getJoin(sqlQuery: String) = {
 
-      new JoinLink((transMap) => {
-                                    transMap.map(t => t._1-> t._2.createOrReplaceTempView(t._1))
-                                    spark.sqlContext.sql(sqlQuery)
-                                  },
-                    m
-      )
-    }
-  }
 
   implicit def join(map: Map[String, Link]) = JoinMap(map)
 
@@ -96,67 +80,11 @@ class FactoryPipeline(private val spark: SparkSession) {
 //  TRANSFORMATIONS
   val createYearFn = (year: Int) => "RY" + (year%100).toString
   val createUniqueIdFn = (year: String, channel: String, division: String, gender: String, category: String) => Seq(year, channel, division, gender, category).mkString("_")
-
-  case class Transform(link: Link) {
-    def addYear(add: Int => String) = {
-
-      new TransformationLink((df: DataFrame)=>{
-                                                  val createYearFnUdf = udf(add)
-                                                  df.withColumn("year", createYearFnUdf(df("datecalendaryear")))
-                                                },
-        link)
-
-    }
-
-    def addUniqueId(addId: (String, String, String, String, String) => String) = {
-
-      new TransformationLink((df: DataFrame) => {
-                                                  val createUniqueIdFnUdf = udf(createUniqueIdFn)
-                                                  df.withColumn("uniqueId", createUniqueIdFnUdf(
-                                                                                                          df("year"),
-                                                                                                          df("channel"),
-                                                                                                          df("division"),
-                                                                                                          df("gender"),
-                                                                                                          df("category")
-                                                                                                        )
-                                                  )
-                                                },
-        link)
-    }
-
-
-    def salesPerWeek() = {
-      new TransformationLink(
-        (df: DataFrame) => {
-                              df.groupBy(df("uniqueId"),df("channel"), df("division"), df("gender"), df("category"))
-                                .agg(collect_list(map(df("weekofyear"),df("netSales"))).as("netSales"),
-                                     collect_list(map(df("weekofyear"), df("salesUnits"))).as("salesUnits")
-                                    )
-                            },
-        link
-      )
-    }
-
-  }
-
   implicit def trans(link: Link) = Transform(link)
 
 
 //  OUTPUT
-  case class Output(link: Link) {
-  def sinkToJsonPartitions() = {
-      new TransformationLink(
-        (df: DataFrame) => {
-          val rows = df.count()
-          df.repartition(rows.toInt).write.mode("overwrite").json("./json/")
-          df
-        },
-      link)
-  }
-
-  }
-
-  implicit def writeOut(link: Link) = Output(link)
+  implicit def writeOut(link: Link) = output(link)
 
 
 //  The pipeline creation
