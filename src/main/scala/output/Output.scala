@@ -3,7 +3,7 @@ package output
 import org.apache.spark.sql.DataFrame
 import pipeline.{Link, TransformationLink}
 
-case class output(link: Link) {
+case class Output(link: Link) {
   def sinkToJsonPartitions() = {
     new TransformationLink(
       (df: DataFrame) => {

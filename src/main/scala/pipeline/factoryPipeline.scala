@@ -3,7 +3,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.expressions._
-import output.output
+import output.Output
 import _root_.transform.{JoinMap, Transform}
 import ingest.Ingestion
 
@@ -84,7 +84,7 @@ class FactoryPipeline(implicit private val spark: SparkSession) {
 
 
 //  OUTPUT
-  implicit def writeOut(link: Link) = output(link)
+  implicit def writeOut(link: Link) = Output(link)
 
 
 //  The pipeline creation
