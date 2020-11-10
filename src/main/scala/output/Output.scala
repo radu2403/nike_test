@@ -8,7 +8,11 @@ case class Output(link: Link) {
     new TransformationLink(
       (df: DataFrame) => {
         val rows = df.count()
-        df.repartition(rows.toInt).write.partitionBy("uniqueId").mode("overwrite").json("./json/")
+        df.repartition(rows.toInt)
+          .write
+          .partitionBy("uniqueId")
+          .mode("overwrite")
+          .json("./json/")
         df
       },
       link)
